@@ -124,6 +124,7 @@ func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, fina
 		SenderUsername:        username,
 		SenderDeviceName:      deviceName,
 		SenderDeviceType:      deviceType,
+		BodyHash:              umwkr.bodyHash,
 		HeaderHash:            umwkr.headerHash,
 		HeaderSignature:       umwkr.headerSignature,
 		SenderDeviceRevokedAt: umwkr.senderDeviceRevokedAt,
@@ -133,6 +134,7 @@ func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, fina
 
 type unboxMessageWithKeyRes struct {
 	messagePlaintext      chat1.MessagePlaintext
+	bodyHash              chat1.Hash
 	headerHash            chat1.Hash
 	headerSignature       *chat1.SignatureInfo
 	senderDeviceRevokedAt *gregor1.Time
@@ -253,10 +255,12 @@ func (b *Boxer) unboxMessageWithKey(ctx context.Context, msg chat1.MessageBoxed,
 	}
 
 	var headerSignature *chat1.SignatureInfo
+	var bodyHash chat1.Hash
 	switch headerVersion {
 	case chat1.HeaderPlaintextVersion_V1:
-		headerSignature = header.V1().HeaderSignature
 		hp := header.V1()
+		headerSignature = hp.HeaderSignature
+		bodyHash = hp.BodyHash
 		clientHeader = chat1.MessageClientHeader{
 			Conv:         hp.Conv,
 			TlfName:      hp.TlfName,
@@ -280,6 +284,7 @@ func (b *Boxer) unboxMessageWithKey(ctx context.Context, msg chat1.MessageBoxed,
 		case chat1.HeaderPlaintextVersion_V1:
 			return unboxMessageWithKeyRes{
 				messagePlaintext:      chat1.MessagePlaintext{ClientHeader: clientHeader},
+				bodyHash:              bodyHash,
 				headerHash:            headerHash,
 				headerSignature:       headerSignature,
 				senderDeviceRevokedAt: validity.senderDeviceRevokedAt,
@@ -303,6 +308,7 @@ func (b *Boxer) unboxMessageWithKey(ctx context.Context, msg chat1.MessageBoxed,
 				ClientHeader: clientHeader,
 				MessageBody:  body.V1().MessageBody,
 			},
+			bodyHash:              bodyHash,
 			headerHash:            headerHash,
 			headerSignature:       headerSignature,
 			senderDeviceRevokedAt: validity.senderDeviceRevokedAt,
