@@ -1198,6 +1198,7 @@ export type MessageUnboxedValid = {
   senderDeviceName: string,
   senderDeviceType: string,
   headerHash: Hash,
+  bodyHash: Hash,
   headerSignature?: ?SignatureInfo,
   senderDeviceRevokedAt?: ?gregor1.Time,
 }

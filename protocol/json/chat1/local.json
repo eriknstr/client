@@ -822,6 +822,10 @@
           "name": "headerHash"
         },
         {
+          "type": "Hash",
+          "name": "bodyHash"
+        },
+        {
           "type": [
             null,
             "SignatureInfo"
