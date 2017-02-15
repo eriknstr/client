@@ -253,7 +253,9 @@ func (d *Service) createMessageDeliverer() {
 	si := func() libkb.SecretUI { return chat.DelivererSecretUI{} }
 	tlf := newTlfHandler(nil, d.G())
 
-	sender := chat.NewBlockingSender(d.G(), chat.NewBoxer(d.G(), tlf, chat.NoopBodyHashChecker, chat.NoopPrevChecker), d.attachmentstore, ri, si)
+	bodyHashChecker := storage.ChatDbBackedBodyHashChecker(d.G())
+	prevChecker := storage.ChatDbBackedPrevChecker(d.G())
+	sender := chat.NewBlockingSender(d.G(), chat.NewBoxer(d.G(), tlf, bodyHashChecker, prevChecker), d.attachmentstore, ri, si)
 	d.G().MessageDeliverer = chat.NewDeliverer(d.G(), sender)
 }
 
@@ -268,7 +270,9 @@ func (d *Service) createChatSources() {
 	ri := func() chat1.RemoteInterface { return chat1.RemoteClient{Cli: d.gregor.cli} }
 	si := func() libkb.SecretUI { return chat.DelivererSecretUI{} }
 	tlf := newTlfHandler(nil, d.G())
-	boxer := chat.NewBoxer(d.G(), tlf, chat.NoopBodyHashChecker, chat.NoopPrevChecker)
+	bodyHashChecker := storage.ChatDbBackedBodyHashChecker(d.G())
+	prevChecker := storage.ChatDbBackedPrevChecker(d.G())
+	boxer := chat.NewBoxer(d.G(), tlf, bodyHashChecker, prevChecker)
 
 	d.G().InboxSource = chat.NewInboxSource(d.G(), d.G().Env.GetInboxSourceType(),
 		ri, si, func() keybase1.TlfInterface { return tlf })

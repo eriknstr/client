@@ -14,6 +14,7 @@ import (
 	"golang.org/x/crypto/nacl/secretbox"
 	"golang.org/x/net/context"
 
+	"github.com/keybase/client/go/chat/storage"
 	"github.com/keybase/client/go/chat/utils"
 	"github.com/keybase/client/go/libkb"
 	"github.com/keybase/client/go/logger"
@@ -34,14 +35,11 @@ func init() {
 	}
 }
 
-type BodyHashChecker func(bodyHash chat1.Hash, uniqueMsgID chat1.MessageID, uniqueConvID chat1.ConversationID) error
-type PrevChecker func(msgID chat1.MessageID, convID chat1.ConversationID, uniqueHeaderHash chat1.Hash) error
-
-func NoopBodyHashChecker(chat1.Hash, chat1.MessageID, chat1.ConversationID) error {
+func NoopBodyHashCheckerForTesting(chat1.Hash, chat1.MessageID, chat1.ConversationID) error {
 	return nil
 }
 
-func NoopPrevChecker(chat1.MessageID, chat1.ConversationID, chat1.Hash) error {
+func NoopPrevCheckerForTesting(chat1.MessageID, chat1.ConversationID, chat1.Hash) error {
 	return nil
 }
 
@@ -53,11 +51,11 @@ type Boxer struct {
 	hashV1 func(data []byte) chat1.Hash
 	sign   func(msg []byte, kp libkb.NaclSigningKeyPair, prefix libkb.SignaturePrefix) (chat1.SignatureInfo, error) // replaceable for testing
 
-	bodyHashChecker BodyHashChecker
-	prevChecker     PrevChecker
+	bodyHashChecker storage.BodyHashChecker
+	prevChecker     storage.PrevChecker
 }
 
-func NewBoxer(g *libkb.GlobalContext, tlf keybase1.TlfInterface, bodyHashChecker BodyHashChecker, prevChecker PrevChecker) *Boxer {
+func NewBoxer(g *libkb.GlobalContext, tlf keybase1.TlfInterface, bodyHashChecker storage.BodyHashChecker, prevChecker storage.PrevChecker) *Boxer {
 	return &Boxer{
 		DebugLabeler:    utils.NewDebugLabeler(g, "Boxer", false),
 		tlf:             tlf,

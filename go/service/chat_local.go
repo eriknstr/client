@@ -47,13 +47,15 @@ type chatLocalHandler struct {
 // newChatLocalHandler creates a chatLocalHandler.
 func newChatLocalHandler(xp rpc.Transporter, g *libkb.GlobalContext, store *chat.AttachmentStore, gh *gregorHandler) *chatLocalHandler {
 	tlf := newTlfHandler(nil, g)
+	bodyHashChecker := storage.ChatDbBackedBodyHashChecker(g)
+	prevChecker := storage.ChatDbBackedPrevChecker(g)
 	h := &chatLocalHandler{
 		BaseHandler:   NewBaseHandler(xp),
 		Contextified:  libkb.NewContextified(g),
 		DebugLabeler:  utils.NewDebugLabeler(g, "ChatLocalHandler", false),
 		gh:            gh,
 		tlf:           tlf,
-		boxer:         chat.NewBoxer(g, tlf, chat.NoopBodyHashChecker, chat.NoopPrevChecker),
+		boxer:         chat.NewBoxer(g, tlf, bodyHashChecker, prevChecker),
 		store:         store,
 		identNotifier: chat.NewIdentifyNotifier(g),
 	}

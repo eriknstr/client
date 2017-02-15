@@ -106,7 +106,7 @@ func setupTest(t *testing.T, numUsers int) (*kbtest.ChatMockWorld, chat1.RemoteI
 	u := world.GetUsers()[0]
 	tc := world.Tcs[u.Username]
 	tc.G.SetService()
-	boxer := NewBoxer(tc.G, tlf, NoopBodyHashChecker, NoopPrevChecker)
+	boxer := NewBoxer(tc.G, tlf, NoopBodyHashCheckerForTesting, NoopPrevCheckerForTesting)
 	f := func() libkb.SecretUI {
 		return &libkb.TestSecretUI{Passphrase: u.Passphrase}
 	}

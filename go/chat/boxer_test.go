@@ -57,7 +57,7 @@ func textMsgWithHeader(t *testing.T, text string, header chat1.MessageClientHead
 
 func setupChatTest(t *testing.T, name string) (libkb.TestContext, *Boxer) {
 	tc := externals.SetupTest(t, name, 2)
-	return tc, NewBoxer(tc.G, nil, NoopBodyHashChecker, NoopPrevChecker)
+	return tc, NewBoxer(tc.G, nil, NoopBodyHashCheckerForTesting, NoopPrevCheckerForTesting)
 }
 
 func getSigningKeyPairForTest(t *testing.T, tc libkb.TestContext, u *kbtest.FakeUser) libkb.NaclSigningKeyPair {

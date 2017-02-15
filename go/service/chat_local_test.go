@@ -72,7 +72,7 @@ func (c *chatTestContext) as(t *testing.T, user *kbtest.FakeUser) *chatTestUserC
 	mockRemote.SetCurrentUser(user.User.GetUID().ToBytes())
 
 	h.tlf = kbtest.NewTlfMock(c.world)
-	h.boxer = chat.NewBoxer(tc.G, h.tlf, chat.NoopBodyHashChecker, chat.NoopPrevChecker)
+	h.boxer = chat.NewBoxer(tc.G, h.tlf, chat.NoopBodyHashCheckerForTesting, chat.NoopPrevCheckerForTesting)
 	f := func() libkb.SecretUI {
 		return &libkb.TestSecretUI{Passphrase: user.Passphrase}
 	}
