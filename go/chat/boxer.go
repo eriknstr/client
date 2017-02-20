@@ -67,12 +67,25 @@ func (b *Boxer) makeErrorMessage(msg chat1.MessageBoxed, err UnboxingError) chat
 	})
 }
 
-// UnboxMessage unboxes a chat1.MessageBoxed into a keybase1.Message.  It finds
-// the appropriate keybase1.CryptKey.
-// The first return value is unusable if the err != nil
-// Returns (_, err) for non-permanent errors, and (MessageUnboxedError, nil) for permanent errors.
-// Permanent errors can be cached and must be treated as a value to deal with.
-// Whereas temporary errors are transient failures.
+// UnboxMessage unboxes a chat1.MessageBoxed into a keybase1.Message. It finds
+// the appropriate keybase1.CryptKey, decrypts the message, and verifies
+// several things:
+//   - The message's signature is valid.
+//   - (TODO) The signing KID was valid when the signature was made.
+//   - (TODO) The signing KID belongs to the sending device.
+//   - (TODO) The sending device belongs to the sender.
+//     [Note that we do currently check the KID -> UID relationship,
+//     independent of the device ID.]
+//   - (TODO) The sender has write permission in the TLF.
+//   - (TODO) The TLF name, public flag, and finalized info resolve to the TLF ID.
+//   - (TODO) The Conversation ID derives from the Conversation Triple.
+//   - (TODO) The body hash is not a replay from another message we know about.
+//   - (TODO) The prev pointers are consistent with other messages we know about.
+//
+// The first return value is unusable if the err != nil Returns (_, err) for
+// non-permanent errors, and (MessageUnboxedError, nil) for permanent errors.
+// Permanent errors can be cached and must be treated as a value to deal with,
+// whereas temporary errors are transient failures.
 func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, finalizeInfo *chat1.ConversationFinalizeInfo) (chat1.MessageUnboxed, UnboxingError) {
 	tlfName := boxed.ClientHeader.TLFNameExpanded(finalizeInfo)
 	tlfPublic := boxed.ClientHeader.TlfPublic
