@@ -57,7 +57,7 @@ func textMsgWithHeader(t *testing.T, text string, header chat1.MessageClientHead
 
 func setupChatTest(t *testing.T, name string) (libkb.TestContext, *Boxer) {
 	tc := externals.SetupTest(t, name, 2)
-	return tc, NewBoxer(tc.G, nil)
+	return tc, NewBoxer(tc.G, nil, NoopBodyHashChecker, NoopPrevChecker)
 }
 
 func getSigningKeyPairForTest(t *testing.T, tc libkb.TestContext, u *kbtest.FakeUser) libkb.NaclSigningKeyPair {
@@ -246,8 +246,11 @@ func TestChatMessageUnboxInvalidBodyHash(t *testing.T) {
 	// put original hash fn back
 	boxer.hashV1 = origHashFn
 
+	// NOTE: this is hashing a lot of zero values, and it might break when we add more checks
+	convID := header.Conv.ToConversationID([2]byte{0, 0})
+
 	// This should produce a permanent error. So err will be nil, but the decmsg will be state=error.
-	decmsg, err := boxer.UnboxMessage(ctx, *boxed, nil /* finalizeInfo */)
+	decmsg, err := boxer.UnboxMessage(ctx, *boxed, convID, nil /* finalizeInfo */)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,9 +292,12 @@ func TestChatMessageUnboxNoCryptKey(t *testing.T) {
 		Ctime: gregor1.ToTime(time.Now()),
 	}
 
+	// NOTE: this is hashing a lot of zero values, and it might break when we add more checks
+	convID := header.Conv.ToConversationID([2]byte{0, 0})
+
 	// This should produce a non-permanent error. So err will be set.
 	bctx := context.WithValue(ctx, kfKey, NewKeyFinderMock())
-	decmsg, ierr := boxer.UnboxMessage(bctx, *boxed, nil /* finalizeInfo */)
+	decmsg, ierr := boxer.UnboxMessage(bctx, *boxed, convID, nil /* finalizeInfo */)
 	if !strings.Contains(ierr.Error(), "no key found") {
 		t.Fatalf("error should contain 'no key found': %v", ierr)
 	}
@@ -547,7 +553,10 @@ func TestChatMessagePublic(t *testing.T) {
 		Ctime: gregor1.ToTime(time.Now()),
 	}
 
-	decmsg, err := boxer.UnboxMessage(ctx, *boxed, nil /* finalizeInfo */)
+	// NOTE: this is hashing a lot of zero values, and it might break when we add more checks
+	convID := header.Conv.ToConversationID([2]byte{0, 0})
+
+	decmsg, err := boxer.UnboxMessage(ctx, *boxed, convID, nil /* finalizeInfo */)
 	if err != nil {
 		t.Fatal(err)
 	}

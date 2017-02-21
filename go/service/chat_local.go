@@ -53,7 +53,7 @@ func newChatLocalHandler(xp rpc.Transporter, g *libkb.GlobalContext, store *chat
 		DebugLabeler:  utils.NewDebugLabeler(g, "ChatLocalHandler", false),
 		gh:            gh,
 		tlf:           tlf,
-		boxer:         chat.NewBoxer(g, tlf),
+		boxer:         chat.NewBoxer(g, tlf, chat.NoopBodyHashChecker, chat.NoopPrevChecker),
 		store:         store,
 		identNotifier: chat.NewIdentifyNotifier(g),
 	}

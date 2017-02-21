@@ -34,22 +34,38 @@ func init() {
 	}
 }
 
+type BodyHashChecker func(bodyHash chat1.Hash, uniqueMsgID chat1.MessageID, uniqueConvID chat1.ConversationID) error
+type PrevChecker func(msgID chat1.MessageID, convID chat1.ConversationID, uniqueHeaderHash chat1.Hash) error
+
+func NoopBodyHashChecker(chat1.Hash, chat1.MessageID, chat1.ConversationID) error {
+	return nil
+}
+
+func NoopPrevChecker(chat1.MessageID, chat1.ConversationID, chat1.Hash) error {
+	return nil
+}
+
 type Boxer struct {
 	utils.DebugLabeler
+	libkb.Contextified
 
 	tlf    keybase1.TlfInterface
 	hashV1 func(data []byte) chat1.Hash
 	sign   func(msg []byte, kp libkb.NaclSigningKeyPair, prefix libkb.SignaturePrefix) (chat1.SignatureInfo, error) // replaceable for testing
-	libkb.Contextified
+
+	bodyHashChecker BodyHashChecker
+	prevChecker     PrevChecker
 }
 
-func NewBoxer(g *libkb.GlobalContext, tlf keybase1.TlfInterface) *Boxer {
+func NewBoxer(g *libkb.GlobalContext, tlf keybase1.TlfInterface, bodyHashChecker BodyHashChecker, prevChecker PrevChecker) *Boxer {
 	return &Boxer{
-		DebugLabeler: utils.NewDebugLabeler(g, "Boxer", false),
-		tlf:          tlf,
-		hashV1:       hashSha256V1,
-		sign:         sign,
-		Contextified: libkb.NewContextified(g),
+		DebugLabeler:    utils.NewDebugLabeler(g, "Boxer", false),
+		tlf:             tlf,
+		hashV1:          hashSha256V1,
+		sign:            sign,
+		bodyHashChecker: bodyHashChecker,
+		prevChecker:     prevChecker,
+		Contextified:    libkb.NewContextified(g),
 	}
 }
 
@@ -86,7 +102,7 @@ func (b *Boxer) makeErrorMessage(msg chat1.MessageBoxed, err UnboxingError) chat
 // non-permanent errors, and (MessageUnboxedError, nil) for permanent errors.
 // Permanent errors can be cached and must be treated as a value to deal with,
 // whereas temporary errors are transient failures.
-func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, finalizeInfo *chat1.ConversationFinalizeInfo) (chat1.MessageUnboxed, UnboxingError) {
+func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, convID chat1.ConversationID, finalizeInfo *chat1.ConversationFinalizeInfo) (chat1.MessageUnboxed, UnboxingError) {
 	tlfName := boxed.ClientHeader.TLFNameExpanded(finalizeInfo)
 	tlfPublic := boxed.ClientHeader.TlfPublic
 	keys, err := CtxKeyFinder(ctx).Find(ctx, b.tlf, tlfName, tlfPublic)
@@ -127,6 +143,45 @@ func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, fina
 		username, err = b.getSenderUsername(ctx, pt.ClientHeader)
 		if err != nil {
 			b.Debug(ctx, "failed to fetch sender username after initial error: err: %s", err.Error())
+		}
+	}
+
+	// Make sure the body hash is unique to this message, and then record it.
+	// This detects attempts by the server to replay a message. Right now we
+	// use a "first writer wins" rule here, though we could also consider a
+	// "duplication invalidates both" rule if we wanted to be stricter.
+	replayErr := b.bodyHashChecker(umwkr.bodyHash, boxed.ServerHeader.MessageID, convID)
+	if replayErr != nil {
+		b.Debug(ctx, "UnboxMessage found a replayed body hash: %s", replayErr)
+		return chat1.MessageUnboxed{}, NewPermanentUnboxingError(replayErr)
+	}
+
+	// Make sure the header hash and prev pointers of this message are
+	// consistent with every other message we've seen, and record them.
+	//
+	// But wait...shouldn't this hash be enough to detect replays (if we check
+	// its uniqueness in the headerHash->msgID direction)? Why did we bother
+	// with the body hash uniqueness check above? The reason is that depending
+	// on the implementation, Ed25519 signatures may be "malleable". If I have
+	// the shared encryption key (and recall that in public chats, everyone
+	// does), I can decrypt the message, twiddle your signature into another
+	// valid signature over the same plaintext, reencrypt the whole thing, and
+	// pass it off as a new valid message with a seemingly new signature and
+	// therefore a unique header hash. So it won't do to check that the
+	// signature bytes themselves are unique. Instead we have to check that
+	// something that's *been signed* is unique, because that's what all
+	// signature schemes guarantee nobody else can modify. The body hash works
+	// well for this, since it's derived from a random nonce.
+	prevPtrErr := b.prevChecker(boxed.ServerHeader.MessageID, convID, umwkr.headerHash)
+	if prevPtrErr != nil {
+		b.Debug(ctx, "UnboxMessage found an inconsistent header hash: %s", replayErr)
+		return chat1.MessageUnboxed{}, NewPermanentUnboxingError(replayErr)
+	}
+	for _, prevPtr := range pt.ClientHeader.Prev {
+		prevPtrErr := b.prevChecker(prevPtr.Id, convID, prevPtr.Hash)
+		if prevPtrErr != nil {
+			b.Debug(ctx, "UnboxMessage found an inconsistent prev pointer: %s", replayErr)
+			return chat1.MessageUnboxed{}, NewPermanentUnboxingError(replayErr)
 		}
 	}
 
@@ -340,7 +395,7 @@ func (b *Boxer) UnboxThread(ctx context.Context, boxed chat1.ThreadViewBoxed, co
 		Pagination: boxed.Pagination,
 	}
 
-	if thread.Messages, err = b.UnboxMessages(ctx, boxed.Messages, finalizeInfo); err != nil {
+	if thread.Messages, err = b.UnboxMessages(ctx, boxed.Messages, convID, finalizeInfo); err != nil {
 		return chat1.ThreadView{}, err
 	}
 
@@ -369,9 +424,9 @@ func (b *Boxer) getSenderInfoLocal(ctx context.Context, clientHeader chat1.Messa
 	return b.getUsernameAndDevice(ctx, uid, did)
 }
 
-func (b *Boxer) UnboxMessages(ctx context.Context, boxed []chat1.MessageBoxed, finalizeInfo *chat1.ConversationFinalizeInfo) (unboxed []chat1.MessageUnboxed, err error) {
+func (b *Boxer) UnboxMessages(ctx context.Context, boxed []chat1.MessageBoxed, convID chat1.ConversationID, finalizeInfo *chat1.ConversationFinalizeInfo) (unboxed []chat1.MessageUnboxed, err error) {
 	for _, msg := range boxed {
-		decmsg, err := b.UnboxMessage(ctx, msg, finalizeInfo)
+		decmsg, err := b.UnboxMessage(ctx, msg, convID, finalizeInfo)
 		if err != nil {
 			return unboxed, err
 		}
