@@ -204,6 +204,12 @@
 			"revisionTime": "2016-03-19T10:18:54-07:00"
 		},
 		{
+			"checksumSHA1": "nWhmwjBJqPSvkCWqaap2Z9EiS1k=",
+			"path": "github.com/keybase/go-crypto/openpgp/ecdh",
+			"revision": "e721397a850bd2d1433ecf6fbbb5dcfcd58131de",
+			"revisionTime": "2017-02-06T19:27:00Z"
+		},
+		{
 			"path": "github.com/keybase/go-crypto/openpgp/elgamal",
 			"revision": "6af3ef04486846fc4b04673b6552bfea75c6af18",
 			"revisionTime": "2016-03-19T10:18:54-07:00"
