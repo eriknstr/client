@@ -188,6 +188,12 @@
 			"revisionTime": "2016-04-25T17:22:39-04:00"
 		},
 		{
+			"checksumSHA1": "F5++ZQS5Vt7hd6lxPCKTffvph1A=",
+			"path": "github.com/keybase/go-crypto/curve25519",
+			"revision": "e721397a850bd2d1433ecf6fbbb5dcfcd58131de",
+			"revisionTime": "2017-02-06T19:27:00Z"
+		},
+		{
 			"checksumSHA1": "3VuVxkLJfNUJkQiUaYsFChSxEiQ=",
 			"path": "github.com/keybase/go-crypto/openpgp",
 			"revision": "e721397a850bd2d1433ecf6fbbb5dcfcd58131de",
