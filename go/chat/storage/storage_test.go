@@ -468,3 +468,42 @@ func TestStorageFetchMessages(t *testing.T) {
 	}
 	require.Equal(t, 1, nils, "wrong number of nils")
 }
+
+func TestStorageDetectBodyHashReplay(t *testing.T) {
+	tc, _, _ := setupStorageTest(t, "fetchMessages")
+
+	// The first time we encounter a body hash it's stored.
+	err := checkAndRecordBodyHash(tc.G, chat1.Hash("foo"), 1, chat1.ConversationID("bar"))
+	require.NoError(t, err)
+
+	// Seeing the same body hash again in the same message is fine. That just
+	// means we uboxed it twice.
+	err = checkAndRecordBodyHash(tc.G, chat1.Hash("foo"), 1, chat1.ConversationID("bar"))
+	require.NoError(t, err)
+
+	// But seeing the hash again with a different convID/msgID is a replay, and
+	// it must trigger an error.
+	err = checkAndRecordBodyHash(tc.G, chat1.Hash("foo"), 1, chat1.ConversationID("bar2"))
+	require.Error(t, err)
+	err = checkAndRecordBodyHash(tc.G, chat1.Hash("foo"), 2, chat1.ConversationID("bar"))
+	require.Error(t, err)
+}
+
+func TestStorageDetectPrevPtrInconsistency(t *testing.T) {
+	tc, _, _ := setupStorageTest(t, "fetchMessages")
+
+	// The first time we encounter a message ID (either in unboxing or in
+	// another message's prev pointer) its header hash is stored.
+	err := checkAndRecordPrevPointer(tc.G, 1, chat1.ConversationID("bar"), chat1.Hash("foo"))
+	require.NoError(t, err)
+
+	// Seeing the same header hash again in the same message is fine. That just
+	// means we uboxed it twice.
+	err = checkAndRecordPrevPointer(tc.G, 1, chat1.ConversationID("bar"), chat1.Hash("foo"))
+	require.NoError(t, err)
+
+	// But seeing the same convID/msgID with a different header hash is a
+	// consistency violation, and it must trigger an error.
+	err = checkAndRecordPrevPointer(tc.G, 1, chat1.ConversationID("bar"), chat1.Hash("foo2"))
+	require.Error(t, err)
+}
