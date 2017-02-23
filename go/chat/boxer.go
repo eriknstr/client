@@ -148,6 +148,23 @@ func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, conv
 	// This detects attempts by the server to replay a message. Right now we
 	// use a "first writer wins" rule here, though we could also consider a
 	// "duplication invalidates both" rule if we wanted to be stricter.
+	//
+	// But wait...why aren't we using the header hash here? We're using it
+	// below, when we check the consistency of messages and prev pointers. The
+	// header hash includes the body hash, after all.
+	//
+	// The reason we can't use the header hash to prevent replays is that it's
+	// a hash *of* a signature, rather than a hash that's *been signed*.
+	// Unfortunately, most signature schemes are "malleable" in some way,
+	// depending on the implementation. See
+	// http://crypto.stackexchange.com/a/14719/21442. If I have the shared
+	// encryption key (and recall that in public chats, everyone does), I can
+	// decrypt the message, twiddle your signature into another valid signature
+	// over the same plaintext, reencrypt the whole thing, and pass it off as a
+	// new valid message with a seemingly new signature and therefore a unique
+	// header hash. Because the body hash is unique to each message (derived
+	// from a random nonce), and because it's *inside* the signature, we use
+	// that to detect replays instead.
 	replayErr := b.bodyHashChecker(umwkr.bodyHash, boxed.ServerHeader.MessageID, convID)
 	if replayErr != nil {
 		b.Debug(ctx, "UnboxMessage found a replayed body hash: %s", replayErr)
@@ -157,19 +174,11 @@ func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, conv
 	// Make sure the header hash and prev pointers of this message are
 	// consistent with every other message we've seen, and record them.
 	//
-	// But wait...shouldn't this hash be enough to detect replays (if we check
-	// its uniqueness in the headerHash->msgID direction)? Why did we bother
-	// with the body hash uniqueness check above? The reason is that depending
-	// on the implementation, Ed25519 signatures may be "malleable". If I have
-	// the shared encryption key (and recall that in public chats, everyone
-	// does), I can decrypt the message, twiddle your signature into another
-	// valid signature over the same plaintext, reencrypt the whole thing, and
-	// pass it off as a new valid message with a seemingly new signature and
-	// therefore a unique header hash. So it won't do to check that the
-	// signature bytes themselves are unique. Instead we have to check that
-	// something that's *been signed* is unique, because that's what all
-	// signature schemes guarantee nobody else can modify. The body hash works
-	// well for this, since it's derived from a random nonce.
+	// The discussion above explains why we have to use the body hash there to
+	// prevent replays. But we need to use the header hash here, because it's
+	// the only thing that covers the entire message. The goal isn't to prevent
+	// the creation of new messages (as it was above), but to prevent an old
+	// message from changing.
 	prevPtrErr := b.prevChecker(boxed.ServerHeader.MessageID, convID, umwkr.headerHash)
 	if prevPtrErr != nil {
 		b.Debug(ctx, "UnboxMessage found an inconsistent header hash: %s", replayErr)
