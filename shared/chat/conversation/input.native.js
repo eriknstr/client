@@ -67,7 +67,9 @@ class ConversationInput extends Component<void, Props, State> {
             onChangeText={this._onChangeText}
             onEnterKeyDown={this._onSubmit}
             value={this.state.text}
-            multiline={false}
+            multiline={true}
+            rowsMin={1}
+            rowsMax={3}
           />
           <Box style={styleRight}>
             {!this.state.text && <Icon onClick={this._openFilePicker} type='iconfont-attachment' />}

@@ -22,8 +22,9 @@ class Input extends Component<void, Props, State> {
     super(props)
 
     this.state = {
-      value: props.value || '',
+      height: this._rowsToHeight(props.rowsMin || 1),
       focused: false,
+      value: props.value || '',
     }
   }
 
@@ -41,6 +42,15 @@ class Input extends Component<void, Props, State> {
   componentWillUpdate (nextProps: Props) {
     if (nextProps.type !== this.props.type) {
       this._setPasswordVisible(nextProps.type === 'passwordVisible')
+    }
+  }
+
+  _onContentSizeChange = (event) => {
+    if (event && event.nativeEvent && event.nativeEvent.contentSize && event.nativeEvent.contentSize.height) {
+      const height = event.nativeEvent.contentSize.height
+      if (height < this._rowsToHeight(this.props.rowsMax)) {
+        this.setState({height: event.nativeEvent.contentSize.height})
+      }
     }
   }
 
@@ -83,6 +93,7 @@ class Input extends Component<void, Props, State> {
   select () {
     this._input && this._inputNode().select()
   }
+
 
   blur () {
     this._input && this._inputNode().blur()
@@ -170,6 +181,7 @@ class Input extends Component<void, Props, State> {
       paddingBottom: 0,
       minHeight: this._rowsToHeight(this.props.rowsMin || defaultRowsToShow),
       ...(this.props.rowsMax ? {maxHeight: this._rowsToHeight(this.props.rowsMax)} : null),
+      height: this.state.height,
     }
 
     const floatingHintText = !!this.state.value.length &&
@@ -184,6 +196,7 @@ class Input extends Component<void, Props, State> {
       autoFocus: this.props.autoFocus,
       onBlur: this._onBlur,
       onChangeText: this._onChangeText,
+      onContentSizeChange: this._onContentSizeChange,
       onFocus: this._onFocus,
       onKeyDown: this._onKeyDown,
       onSubmitEditing: this.props.onEnterKeyDown,
