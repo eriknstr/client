@@ -147,11 +147,14 @@ func (b *Boxer) UnboxMessage(ctx context.Context, boxed chat1.MessageBoxed, conv
 	// Make sure the body hash is unique to this message, and then record it.
 	// This detects attempts by the server to replay a message. Right now we
 	// use a "first writer wins" rule here, though we could also consider a
-	// "duplication invalidates both" rule if we wanted to be stricter.
+	// "duplication invalidates both" rule if we wanted to be stricter. Note
+	// that this only prevents replays of messages you *know about*. There's
+	// currently nothing stopping the server from replaying an ancient message
+	// if you're never going to fetch enough history to notice.
 	//
-	// But wait...why aren't we using the header hash here? We're using it
-	// below, when we check the consistency of messages and prev pointers. The
-	// header hash includes the body hash, after all.
+	// But...wait...why aren't we using the header hash here? It covers more
+	// stuff, and we're using it below, when we check the consistency of
+	// messages and prev pointers...
 	//
 	// The reason we can't use the header hash to prevent replays is that it's
 	// a hash *of* a signature, rather than a hash that's *been signed*.

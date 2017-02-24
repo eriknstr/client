@@ -296,7 +296,7 @@ func TestChatMessageUnboxNoCryptKey(t *testing.T) {
 	convID := header.Conv.ToConversationID([2]byte{0, 0})
 
 	// This should produce a non-permanent error. So err will be set.
-	bctx := context.WithValue(ctx, kfKey, NewKeyFinderMock())
+	bctx := context.WithValue(ctx, kfKey, NewKeyFinderMock(nil))
 	decmsg, ierr := boxer.UnboxMessage(bctx, *boxed, convID, nil /* finalizeInfo */)
 	if !strings.Contains(ierr.Error(), "no key found") {
 		t.Fatalf("error should contain 'no key found': %v", ierr)
@@ -572,12 +572,67 @@ func TestChatMessagePublic(t *testing.T) {
 	}
 }
 
-type KeyFinderMock struct{}
+func TestChatMessageBodyHashReplay(t *testing.T) {
+	text := "hi"
+	tc, boxer := setupChatTest(t, "unbox")
+	defer tc.Cleanup()
 
-func NewKeyFinderMock() KeyFinder {
-	return &KeyFinderMock{}
+	// need a real user
+	u, err := kbtest.CreateAndSignupFakeUser("unbox", tc.G)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	signKP := getSigningKeyPairForTest(t, tc, u)
+
+	// Generate an encryption key and create a fake finder to fetch it.
+	key := cryptKey(t)
+	finder := NewKeyFinderMock([]keybase1.CryptKey{*key})
+	boxerContext := context.WithValue(context.Background(), kfKey, finder)
+
+	// This message has an all zeros ConversationIDTriple, but that's fine. We
+	// can still extract the ConvID from it.
+	msg := textMsgWithSender(t, text, gregor1.UID(u.User.GetUID().ToBytes()))
+	convID := msg.ClientHeader.Conv.ToConversationID([2]byte{0, 0})
+	boxed, err := boxer.boxMessageWithKeys(msg, key, signKP)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// need to give it a server header...
+	boxed.ServerHeader = &chat1.MessageServerHeader{
+		Ctime:     gregor1.ToTime(time.Now()),
+		MessageID: 1,
+	}
+
+	// unbox the message once
+	_, err = boxer.UnboxMessage(boxerContext, *boxed, convID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// unbox it again. this should be fine.
+	_, err = boxer.UnboxMessage(boxerContext, *boxed, convID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// now try to unbox it again with a different MessageID. this must fail.
+	boxed.ServerHeader.MessageID = 2
+	_, err = boxer.UnboxMessage(boxerContext, *boxed, convID, nil)
+	if err == nil {
+		t.Fatal("replay must be detected")
+	}
+}
+
+type KeyFinderMock struct {
+	cryptKeys []keybase1.CryptKey
+}
+
+func NewKeyFinderMock(cryptKeys []keybase1.CryptKey) KeyFinder {
+	return &KeyFinderMock{cryptKeys}
 }
 
 func (k *KeyFinderMock) Find(ctx context.Context, tlf keybase1.TlfInterface, tlfName string, tlfPublic bool) (keybase1.GetTLFCryptKeysRes, error) {
-	return keybase1.GetTLFCryptKeysRes{}, nil
+	return keybase1.GetTLFCryptKeysRes{CryptKeys: k.cryptKeys}, nil
 }
